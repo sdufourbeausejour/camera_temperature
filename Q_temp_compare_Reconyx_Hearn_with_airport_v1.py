@@ -58,7 +58,7 @@ names = ["year","month","day","hour","minute","second","temperature"]
 for key in data.keys():
     data[key].columns = names
 # Load EC data
-data["EC"] = pd.read_csv("data/EC/concatenated.txt", comment='#')
+data["EC"] = pd.read_csv("data/EC/Q_EC_temperatures_assembled.txt", comment='#')
 data["EC"]["minute"] = [x[3:] for x in data["EC"]["hour"]]
 data["EC"]["hour"] = [x[0:2] for x in data["EC"]["hour"]]
 data["EC"]["second"] = np.zeros(len(data["EC"]["hour"]))
