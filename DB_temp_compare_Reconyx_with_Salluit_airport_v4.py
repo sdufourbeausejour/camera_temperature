@@ -102,7 +102,7 @@ for camera in ["DB","EC"]:
 intersection = pd.concat([daily_mean["DB"].dropna(), daily_mean["EC"].dropna()], axis=1, join='inner')
 intersection.columns = ["DB","EC"]
 intersection["diff"] = intersection["DB"] - intersection["EC"]
-
+intersection["corrected"] = intersection["DB"]
 figures_path = "../../figures/meteo/"+script_name[0:-3]+".pdf"
 fig, axes = plt.subplots(3, 3, figsize=(14, 8)) # (1,1) means one plot, and figsize is w x h in inch of figure
 fig.subplots_adjust(left=0.08, right=0.96, bottom=0.1, top=0.92, hspace=0.2, wspace=0.1) # adjust the box of axes regarding the figure size
@@ -124,6 +124,9 @@ for i, year in enumerate([2015,2016,2017]):
     axes[i].plot_date(daily_mean["EC"].index, daily_mean["EC"], linewidth=0.4,marker=" ",linestyle="-",color="r")
     axes[i].annotate(r"Reconyx", xy=(0.7,0.18), xycoords="axes fraction",fontsize=12,color="k")
     axes[i].annotate(r"EC (Salluit)", xy=(0.7,0.08), xycoords="axes fraction",fontsize=12,color="r")
+
+    # print(daily_mean["DB"])
+    # daily_mean["DB"].to_csv("data_for_dataserver/DB_temperature.csv")
 
     # Correct DB data
     year_data_ind = (intersection["diff"].index > mpl.dates.num2date(xmin)) & (intersection["diff"].index <= mpl.dates.num2date(xmax))
@@ -161,6 +164,12 @@ for i, year in enumerate([2015,2016,2017]):
     axes[i+6].yaxis.set_ticks(np.arange(-5,15,5))
     axes[i+6].yaxis.set_ticks(np.arange(-10,15,1), minor=True)
     axes[i+6].set_ylim(-6,12)
+
+    # # save T + bias
+    intersection["corrected"][year_data_ind] += bias
+
+to_save = pd.concat([intersection["DB"], intersection["corrected"], intersection["EC"]],axis=1)
+to_save.to_csv("data_for_dataserver/DB_corrected.csv", header=["DB_R_uncorrected","DB_R_corrected","S_EC"])
 
 # reccurent setup
 for ax in axes:

@@ -151,11 +151,12 @@ for camera in ["Nord_268","EC"]:
 intersection = pd.concat([daily_mean["Nord_268"].dropna(), daily_mean["EC"].dropna()], axis=1, join='inner')
 intersection.columns = ["Nord_268","EC"]
 intersection["diff"] = intersection["Nord_268"] - intersection["EC"]
+intersection["corrected"] = intersection["Nord_268"]
 figures_path = "../../figures/meteo/"+script_name[0:-3]+".pdf"
 fig, axes = plt.subplots(3, 3, figsize=(14, 8)) # (1,1) means one plot, and figsize is w x h in inch of figure
 fig.subplots_adjust(left=0.08, right=0.96, bottom=0.1, top=0.92, hspace=0.2, wspace=0.1) # adjust the box of axes regarding the figure size
 axes = axes.flatten()
-fig.suptitle("Comparing Quaqtaq Reconyx Nord Temperature Measurements with Airport", fontsize=12)
+# fig.suptitle("Comparing Quaqtaq Reconyx Nord Temperature Measurements with Airport", fontsize=12)
 
 for i, year in enumerate([2015,2016,2017]):
     xmin = mpl.dates.date2num(datetime.datetime(year=int(year),month=int(9),day=int(15)))
@@ -174,7 +175,7 @@ for i, year in enumerate([2015,2016,2017]):
     axes[i].annotate(r"Reconyx", xy=(0.05,0.18), xycoords="axes fraction",fontsize=12,color="k")
     axes[i].annotate(r"EC", xy=(0.05,0.08), xycoords="axes fraction",fontsize=12,color="r")
 
-    # Correct DB data
+    # Correct  data
     year_data_ind = (intersection["diff"].index > mpl.dates.num2date(xmin)) & (intersection["diff"].index <= mpl.dates.num2date(xmax))
     yearly_diff = intersection["diff"][year_data_ind]
     smooth_diff = savgol_filter(yearly_diff.values, 121, 3) # window size, polynomial order
@@ -210,6 +211,12 @@ for i, year in enumerate([2015,2016,2017]):
     axes[i+6].yaxis.set_ticks(np.arange(-5,15,5))
     axes[i+6].yaxis.set_ticks(np.arange(-10,15,1), minor=True)
     axes[i+6].set_ylim(-6,12)
+
+    # # save T + bias
+    intersection["corrected"][year_data_ind] += bias
+
+to_save = pd.concat([intersection["Nord_268"], intersection["corrected"], intersection["EC"]],axis=1)
+to_save.to_csv("data_for_dataserver/Q_corrected.csv", header=["Q_R_uncorrected","Q_R_corrected","Q_EC"])
 
 
 # reccurent setup
@@ -251,5 +258,5 @@ for i in list([0,1,2,3,4,5]):
     axes[i].set_xlabel("")
 
 #plt.show()
-fig.savefig(figures_path[0:-3]+"png", dpi=300)
+fig.savefig(figures_path)
 plt.close()
