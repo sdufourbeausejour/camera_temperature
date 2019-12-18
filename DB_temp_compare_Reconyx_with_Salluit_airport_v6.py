@@ -13,6 +13,8 @@ from datetime import date       # manipulation de dates
 from scipy import interpolate
 from scipy.signal import savgol_filter
 from scipy import stats
+import sklearn
+import scipy
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -103,8 +105,8 @@ intersection = pd.concat([daily_mean["DB"].dropna(), daily_mean["EC"].dropna()],
 intersection.columns = ["DB","EC"]
 intersection["diff"] = intersection["DB"] - intersection["EC"]
 intersection["corrected"] = intersection["DB"]
-figures_path = "../../figures/meteo/"+script_name[0:-3]+".pdf"
-fig, axes = plt.subplots(3, 3, figsize=(14, 8)) # (1,1) means one plot, and figsize is w x h in inch of figure
+figures_path = "../../figures/special_issue_TSX/R1/"+script_name[0:-3]+".pdf"
+fig, axes = plt.subplots(2, 3, figsize=(15, 5)) # (1,1) means one plot, and figsize is w x h in inch of figure
 fig.subplots_adjust(left=0.08, right=0.96, bottom=0.1, top=0.92, hspace=0.2, wspace=0.1) # adjust the box of axes regarding the figure size
 axes = axes.flatten()
 # fig.suptitle("Comparing Deception Bay Reconyx Temperature Measurements with Salluit Airport", fontsize=12)
@@ -122,61 +124,109 @@ for i, year in enumerate([2015,2016,2017]):
     axes[i].annotate(str(year)+"-"+str(year+1), xy=(0.04,0.875), xycoords="axes fraction",fontsize=12,color="k")
     axes[i].plot_date(daily_mean["DB"].index, daily_mean["DB"], linewidth=0.4,marker=" ",linestyle="-",color="k")
     axes[i].plot_date(daily_mean["EC"].index, daily_mean["EC"], linewidth=0.4,marker=" ",linestyle="-",color="r")
-    axes[i].annotate(r"Reconyx", xy=(0.7,0.18), xycoords="axes fraction",fontsize=12,color="k")
-    axes[i].annotate(r"EC (Salluit)", xy=(0.7,0.08), xycoords="axes fraction",fontsize=12,color="r")
+    if i == 0:
+        axes[i].annotate(r"Camera", xy=(0.05,0.18), xycoords="axes fraction",fontsize=12,color="k")
+        axes[i].annotate(r"Airport (50 km)", xy=(0.05,0.08), xycoords="axes fraction",fontsize=12,color="r")
 
-    # print(daily_mean["DB"])
-    # daily_mean["DB"].to_csv("data_for_dataserver/DB_temperature.csv")
+    # Compute correlation coefficient
+    joined = pd.concat([daily_mean["DB"], daily_mean["EC"]], axis=1, join='inner')
+    joined.columns = ["Reconyx", "EC"]
+    joined = joined.dropna()
+    joined = joined.loc[mpl.dates.num2date(xmin):mpl.dates.num2date(xmax)]
+    pearson = scipy.stats.pearsonr(joined["Reconyx"], joined["EC"])
+    print(pearson)
+    axes[i].annotate(r"r = {:.2f}".format(pearson[0]), xy=(0.68, 0.18), xycoords="axes fraction", fontsize=12,
+                     color="k")
 
-    # Correct DB data
+    difference = joined["Reconyx"]-joined["EC"]
+    MSE = np.average([x**2 for x in difference])
+    print(np.sqrt(MSE))
+    axes[i].annotate(r"RMSE = {:.1f}$\degree$C".format(np.sqrt(MSE)), xy=(0.68, 0.08), xycoords="axes fraction", fontsize=12,
+                     color="k")
+
+    # Plot difference
     year_data_ind = (intersection["diff"].index > mpl.dates.num2date(xmin)) & (intersection["diff"].index <= mpl.dates.num2date(xmax))
     yearly_diff = intersection["diff"][year_data_ind]
-    smooth_diff = savgol_filter(yearly_diff.values, 121, 3) # window size, polynomial order
-    mu = mpl.dates.date2num(datetime.datetime(year+1,5,1))
-    sigma = 50
-    gaussian = stats.norm.pdf(v_date2num(yearly_diff.index), mu, sigma)
-    bias = -4*gaussian/max(gaussian)
-    axes[i+3].set_xlim(xmin=xmin,xmax=xmax)   # limit for xaxis
     axes[i+3].plot_date(v_date2num(yearly_diff.index),yearly_diff, linewidth=0.4 ,marker=" ",linestyle="-",color="k")
-    axes[i+3].plot_date(v_date2num(yearly_diff.index),smooth_diff, linewidth=1 ,marker=" ",linestyle="-",color="k")
-    axes[i+3].plot_date(v_date2num(yearly_diff.index),-bias, linewidth=1 ,marker=" ",linestyle="-",color="b")
+    axes[i+3].set_xlim(xmin=xmin,xmax=xmax)   # limit for xaxis
     axes[i+3].axhline(y=0, ls="-", c="k", linewidth=0.5)
-    axes[i+3].annotate(r"Reconyx - EC$_{Salluit}$", xy=(0.55,0.18), xycoords="axes fraction",fontsize=12,color="k")
-    axes[i+3].annotate(r"Modeled heating bias", xy=(0.55,0.08), xycoords="axes fraction",fontsize=12,color="b")
-    # axes[3].annotate(r"DB - corrected", xy=(0.65,0.08), xycoords="axes fraction",fontsize=12,color="b")
+
+    # # Model bias
+    # mu = mpl.dates.date2num(datetime.datetime(year+1,5,1))
+    # sigma = 50
+    # gaussian = scipy.stats.norm.pdf(v_date2num(yearly_diff.index), mu, sigma)
+    # bias = 4.0*gaussian/max(gaussian)
+    # axes[i+3].plot_date(v_date2num(yearly_diff.index),bias, linewidth=1 ,marker=" ",linestyle="-",color="b")
+    #
+    # pearson = scipy.stats.pearsonr(yearly_diff, bias)
+    # print(pearson)
+    # axes[i+3].annotate(r"r = {:.2f}".format(pearson[0]), xy=(0.68, 0.18), xycoords="axes fraction", fontsize=12,
+    #                  color="k")
+    #
+    # difference = yearly_diff - bias
+    # MSE = np.average([x**2 for x in difference])
+    # axes[i+3].annotate(r"RMSE = {:.1f}$\degree$C".format(np.sqrt(MSE)), xy=(0.68, 0.08), xycoords="axes fraction", fontsize=12,)
+
+    # if i == 0:
+    #     axes[i+3].annotate(r"Modeled camera bias", xy=(0.05,0.08), xycoords="axes fraction",fontsize=12,color="b")
     axes[i+3].set_ylabel(r"$\Delta T$ ($^\circ$C)")
     axes[i+3].yaxis.set_ticks(np.arange(-5,15,5))
     axes[i+3].yaxis.set_ticks(np.arange(-10,15,1), minor=True)
     axes[i+3].set_ylim(-6,12)
 
-    # Plot difference
-    yearly_diff_corr = yearly_diff+bias
-    axes[i+6].set_xlim(xmin=xmin,xmax=xmax)   # limit for xaxis
-    axes[i+6].plot_date(v_date2num(yearly_diff_corr.index),yearly_diff_corr, linewidth=0.4 ,marker=" ",linestyle="-",color="k")
-    axes[i+6].axhline(y=0, ls="-", c="k", linewidth=0.5)
-    # Mean diff for that year
-    mean_diff = np.mean(yearly_diff_corr)
-    axes[i+6].axhline(y=mean_diff, ls="--", c="b", linewidth=0.5)
-    axes[i+6].annotate(r"$\Delta T_{mean}$ = "+"{:.1f}".format(mean_diff)+r" $^\circ$C", xy=(0.04,0.85), xycoords="axes fraction",fontsize=12,color="k")
-    axes[i+6].annotate(r"Reconyx$_{corrected}$ - EC$_{Salluit}$", xy=(0.45,0.08), xycoords="axes fraction",fontsize=12,color="k")
-    axes[i+6].set_ylabel(r"$\Delta T$ ($^\circ$C)")
-    # axes[i+3].yaxis.set_ticks(np.arange(-10,30,1), minor=True)
-    axes[i+6].yaxis.set_ticks(np.arange(-5,15,5))
-    axes[i+6].yaxis.set_ticks(np.arange(-10,15,1), minor=True)
-    axes[i+6].set_ylim(-6,12)
 
-    # # save T + bias
-    intersection["corrected"][year_data_ind] += bias
+        # print(daily_mean["DB"])
+    # daily_mean["DB"].to_csv("data_for_dataserver/DB_temperature.csv")
 
-# print median monthly air temperature
-df = intersection["corrected"].copy()
-med_air = df.groupby([(df.index.year),(df.index.month)]).median()
-print(med_air)
+    # # Correct DB data
+    # year_data_ind = (intersection["diff"].index > mpl.dates.num2date(xmin)) & (intersection["diff"].index <= mpl.dates.num2date(xmax))
+    # yearly_diff = intersection["diff"][year_data_ind]
+    # smooth_diff = savgol_filter(yearly_diff.values, 121, 3) # window size, polynomial order
+    # mu = mpl.dates.date2num(datetime.datetime(year+1,5,1))
+    # sigma = 50
+    # gaussian = stats.norm.pdf(v_date2num(yearly_diff.index), mu, sigma)
+    # bias = -4*gaussian/max(gaussian)
+    # axes[i+3].set_xlim(xmin=xmin,xmax=xmax)   # limit for xaxis
+    # axes[i+3].plot_date(v_date2num(yearly_diff.index),yearly_diff, linewidth=0.4 ,marker=" ",linestyle="-",color="k")
+    # axes[i+3].plot_date(v_date2num(yearly_diff.index),smooth_diff, linewidth=1 ,marker=" ",linestyle="-",color="k")
+    # axes[i+3].plot_date(v_date2num(yearly_diff.index),-bias, linewidth=1 ,marker=" ",linestyle="-",color="b")
+    # axes[i+3].axhline(y=0, ls="-", c="k", linewidth=0.5)
+    # axes[i+3].annotate(r"Reconyx - EC$_{Salluit}$", xy=(0.55,0.18), xycoords="axes fraction",fontsize=12,color="k")
+    # axes[i+3].annotate(r"Modeled heating bias", xy=(0.55,0.08), xycoords="axes fraction",fontsize=12,color="b")
+    # # axes[3].annotate(r"DB - corrected", xy=(0.65,0.08), xycoords="axes fraction",fontsize=12,color="b")
+    # axes[i+3].set_ylabel(r"$\Delta T$ ($^\circ$C)")
+    # axes[i+3].yaxis.set_ticks(np.arange(-5,15,5))
+    # axes[i+3].yaxis.set_ticks(np.arange(-10,15,1), minor=True)
+    # axes[i+3].set_ylim(-6,12)
+    #
+    # # Plot difference
+    # yearly_diff_corr = yearly_diff+bias
+    # axes[i+6].set_xlim(xmin=xmin,xmax=xmax)   # limit for xaxis
+    # axes[i+6].plot_date(v_date2num(yearly_diff_corr.index),yearly_diff_corr, linewidth=0.4 ,marker=" ",linestyle="-",color="k")
+    # axes[i+6].axhline(y=0, ls="-", c="k", linewidth=0.5)
+    # # Mean diff for that year
+    # mean_diff = np.mean(yearly_diff_corr)
+    # axes[i+6].axhline(y=mean_diff, ls="--", c="b", linewidth=0.5)
+    # axes[i+6].annotate(r"$\Delta T_{mean}$ = "+"{:.1f}".format(mean_diff)+r" $^\circ$C", xy=(0.04,0.85), xycoords="axes fraction",fontsize=12,color="k")
+    # axes[i+6].annotate(r"Reconyx$_{corrected}$ - EC$_{Salluit}$", xy=(0.45,0.08), xycoords="axes fraction",fontsize=12,color="k")
+    # axes[i+6].set_ylabel(r"$\Delta T$ ($^\circ$C)")
+    # # axes[i+3].yaxis.set_ticks(np.arange(-10,30,1), minor=True)
+    # axes[i+6].yaxis.set_ticks(np.arange(-5,15,5))
+    # axes[i+6].yaxis.set_ticks(np.arange(-10,15,1), minor=True)
+    # axes[i+6].set_ylim(-6,12)
+    #
+    # # # save T + bias
+    # intersection["corrected"][year_data_ind] += bias
 
-
-to_save = pd.concat([intersection["DB"], intersection["corrected"], intersection["EC"]],axis=1)
-to_save.to_csv("data_for_dataserver/DB_corrected.csv", header=["DB_R_uncorrected","DB_R_corrected","S_EC"])
-
+# # print median monthly air temperature
+# df = intersection["corrected"].copy()
+# med_air = df.groupby([(df.index.year),(df.index.month)]).median()
+# print(med_air)
+#
+#
+# to_save = pd.concat([intersection["DB"], intersection["corrected"], intersection["EC"]],axis=1)
+# to_save.to_csv("data_for_dataserver/DB_corrected.csv", header=["DB_R_uncorrected","DB_R_corrected","S_EC"])
+#
 
 
 # reccurent setup
@@ -209,11 +259,11 @@ for ax in axes:
     ax.xaxis.set_minor_locator(ticker.FixedLocator(tick_list))
     ax.tick_params(direction='in',which="both",right=1,top=1)
 
-for i in list([1,2,4,5,7,8]):
+for i in list([1,2,4,5]):
     axes[i].get_yaxis().set_ticklabels([])
     axes[i].set_ylabel("")
 
-for i in list([0,1,2,3,4,5]):
+for i in list([0,1,2]):
     axes[i].get_xaxis().set_ticklabels([])
     axes[i].set_xlabel("")
 

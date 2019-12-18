@@ -1,3 +1,13 @@
+# Daily mean temperature measured by a Reconyx camera installed in Deception Bay Nunavik
+# Columns: 
+# 1. dates
+# 2. Reconyx measurement uncorrected for heating bias
+# 3. Reconyx measurement corrected for heating bias
+# 4. Environment Canada air temperature measurement at Salluit airport
+# Original data available at ete.inrs.ca/caiman (combination of both Reconyx cameras in Deception Bay)
+# Heating bias modeled as Gaussian with mu = 4 degrees and sigma = 50 days
+# Temperature in Celcius
+# For details on this dataset: s.dufour.beausejour@gmail.com
 dates,DB_R_uncorrected,DB_R_corrected,S_EC
 2015-09-11 00:00:00+00:00,9.0,9.0,1.6583333333333332
 2015-09-12 00:00:00+00:00,5.972222222222222,5.972222222222222,5.883333333333333
